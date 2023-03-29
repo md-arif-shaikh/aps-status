@@ -19,7 +19,7 @@
 ;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
-
+;;; M-x aps-status -- To get status of manuscript by entering accession code and author last name
 ;; 
 
 ;;; Code:
@@ -44,19 +44,39 @@
 	`(("status" . ,status-data)
 	  ("correspondence" . ,correspondence-data))))))
 
-(defvar aps-status--accession-code-history '()
-  "History of accession codes.")
+(defcustom aps-status--input-history-file (if (file-exists-p (expand-file-name "~/.emacs.d"))
+					"~/.emacs.d/aps-status-input-history.csv"
+				      "~/.config/emacs/aps-status-input-history.csv")
+  "Path to save used accession codes and author last names."
+  :type 'string
+  :group 'aps-status)
 
-(defvar aps-status--author-last-name-history '()
-  "History of author last names.")
+(defun aps-status--get-input-history-alist ()
+  "Get the alist of input history."
+  (when (file-exists-p aps-status--input-history-file)
+    (let* ((hist-string (with-temp-buffer
+			  (insert-file-contents-literally aps-status--input-history-file)
+			  (split-string (buffer-string) "\n"))))
+      (cl-loop for hist in hist-string
+		    collect (split-string hist ",")))))
+
+(defun aps-status-save-input-to-history (accession-code author-last-name accession-codes-from-history)
+  "Save the ACCESSION-CODE and AUTHOR-LAST-NAME to history file.
+Checks against ACCESSION-CODES-FROM-HISTORY to see if it already exists."
+  (unless (member accession-code accession-codes-from-history)
+    (with-current-buffer (find-file-noselect aps-status--input-history-file)
+      (goto-char (point-max))
+      (insert (format "%s,%s" accession-code author-last-name))
+      (write-file aps-status--input-history-file))))
 
 (defun aps-status (accession-code author-last-name)
   "Get status of APS manuscripts using ACCESSION-CODE and AUTHOR-LAST-NAME."
   (interactive
-   (let ((accession-code (completing-read "Enter accession code: " aps-status--accession-code-history nil nil))
-	 (author-last-name (completing-read "Enter author last name: " aps-status--author-last-name-history nil nil)))
-     (add-to-list 'aps-status--accession-code-history accession-code)
-     (add-to-list 'aps-status--author-last-name-history author-last-name)
+   (let* ((input-history-alist (aps-status--get-input-history-alist))
+	  (accession-codes-from-history (mapcar #'car input-history-alist))
+	  (accession-code (completing-read "Enter accession code: " accession-codes-from-history))
+	  (author-last-name (read-from-minibuffer "Enter author last name: " (cdr (assoc accession-code input-history-alist)))))
+     (aps-status-save-input-to-history accession-code author-last-name accession-codes-from-history)
      (list accession-code author-last-name)))
   (let ((data (aps--fetch-status-data accession-code author-last-name))
 	(buffer (get-buffer-create (format "*aps-status-%s-%s*" accession-code author-last-name))))
