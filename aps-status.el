@@ -52,6 +52,11 @@
   :type 'string
   :group 'aps-status)
 
+(defcustom aps-status--num-correspondence-in-short-status 2
+  "Number of correspondence to use in short status."
+  :type 'integer
+  :group 'aps-status)
+
 (defun aps-status--get-input-history-alist ()
   "Get the alist of input history."
   (when (file-exists-p aps-status--input-history-file)
@@ -84,7 +89,12 @@ Gives a short summary when SHORT is non-nil."
 	(status (cdr (assoc "status" data)))
 	(correspondence (cdr (assoc "correspondence" data))))
     (if short
-	(message "%s. %s" (cdr (assoc "Status:" status)) (string-join (car correspondence) " "))
+	(message "%s.\n%s"
+		 (cdr (assoc "Status:" status))
+		 (string-join (cl-loop for d in correspondence
+				       for i upfrom 0
+				       while (< i aps-status--num-correspondence-in-short-status)
+				       collect (string-join d " ")) "\n"))
       (let ((buffer (get-buffer-create (format "*aps-status-%s-%s*" accession-code author-last-name))))
 	(with-current-buffer buffer
 	  (insert (string-join (cl-loop for d in status
