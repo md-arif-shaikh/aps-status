@@ -19,7 +19,8 @@
 ;; along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 ;;; Commentary:
-;;; M-x aps-status -- To get status of manuscript by entering accession code and author last name
+;;; M-x aps-status -- Status of manuscript by entering accession code and author last name.
+;;; M-x aps-status-short -- Short update displayed in the minibuffer.
 ;; 
 
 ;;; Code:
@@ -60,36 +61,50 @@
       (cl-loop for hist in hist-string
 		    collect (split-string hist ",")))))
 
-(defun aps-status-save-input-to-history (accession-code author-last-name accession-codes-from-history)
+(defun aps-status--save-input-to-history (accession-code author-last-name accession-codes-from-history)
   "Save the ACCESSION-CODE and AUTHOR-LAST-NAME to history file.
 Checks against ACCESSION-CODES-FROM-HISTORY to see if it already exists."
   (unless (member accession-code accession-codes-from-history)
     (with-current-buffer (find-file-noselect aps-status--input-history-file)
       (goto-char (point-max))
-      (insert (format "%s,%s" accession-code author-last-name))
+      (insert (format "\n%s,%s" accession-code author-last-name))
       (write-file aps-status--input-history-file))))
 
-(defun aps-status (accession-code author-last-name)
-  "Get status of APS manuscripts using ACCESSION-CODE and AUTHOR-LAST-NAME."
+(defun aps-status (accession-code author-last-name &optional short)
+  "Get status of APS manuscripts using ACCESSION-CODE and AUTHOR-LAST-NAME.
+Gives a short summary when SHORT is non-nil."
   (interactive
    (let* ((input-history-alist (aps-status--get-input-history-alist))
 	  (accession-codes-from-history (mapcar #'car input-history-alist))
 	  (accession-code (completing-read "Enter accession code: " accession-codes-from-history))
 	  (author-last-name (read-from-minibuffer "Enter author last name: " (cdr (assoc accession-code input-history-alist)))))
-     (aps-status-save-input-to-history accession-code author-last-name accession-codes-from-history)
+     (aps-status--save-input-to-history accession-code author-last-name accession-codes-from-history)
      (list accession-code author-last-name)))
-  (let ((data (aps--fetch-status-data accession-code author-last-name))
-	(buffer (get-buffer-create (format "*aps-status-%s-%s*" accession-code author-last-name))))
-    (with-current-buffer buffer
-      (let* ((status (cdr (assoc "status" data)))
-	     (correspondence (cdr (assoc "correspondence" data))))
-	(insert (string-join (cl-loop for d in status
-				      collect (format "%s %s" (car d) (cdr d))) "\n"))
-	(insert "\nCorrespondence:\n")
-	(insert (string-join (cl-loop for d in correspondence
-				      collect (string-join d " ")) "\n")))
-      (read-only-mode)
-      (switch-to-buffer-other-window buffer))))
+  (let* ((data (aps--fetch-status-data accession-code author-last-name))
+	(status (cdr (assoc "status" data)))
+	(correspondence (cdr (assoc "correspondence" data))))
+    (if short
+	(message "%s. %s" (cdr (assoc "Status:" status)) (string-join (car correspondence) " "))
+      (let ((buffer (get-buffer-create (format "*aps-status-%s-%s*" accession-code author-last-name))))
+	(with-current-buffer buffer
+	  (insert (string-join (cl-loop for d in status
+					collect (format "%s %s" (car d) (cdr d))) "\n"))
+	  (insert "\nCorrespondence:\n")
+	  (insert (string-join (cl-loop for d in correspondence
+					collect (string-join d " ")) "\n"))
+	  (read-only-mode)
+	  (switch-to-buffer-other-window buffer))))))
+
+(defun aps-status-short (accession-code author-last-name)
+  "Get short status of APS manuscript using ACCESSION-CODE and AUTHOR-LAST-NAME."
+    (interactive
+     (let* ((input-history-alist (aps-status--get-input-history-alist))
+	    (accession-codes-from-history (mapcar #'car input-history-alist))
+	    (accession-code (completing-read "Enter accession code: " accession-codes-from-history))
+	    (author-last-name (read-from-minibuffer "Enter author last name: " (cdr (assoc accession-code input-history-alist)))))
+       (aps-status--save-input-to-history accession-code author-last-name accession-codes-from-history)
+       (list accession-code author-last-name)))
+    (aps-status accession-code author-last-name t))
 
 (provide 'aps-status)
 ;;; aps-status.el ends here

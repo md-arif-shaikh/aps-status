@@ -9,4 +9,5 @@ Get status update of manuscripts in APS journals
 
 # Usage
 - `M-x` `aps-status` to get status of manuscript by providing accession code and author last name.
+- `M-x` `aps-status-short` to get a one line short update displayed in the minibuffer.
 
